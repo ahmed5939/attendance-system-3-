@@ -1,0 +1,72 @@
+datasource db {
+  provider  = "postgresql"
+  url  	    = env("DATABASE_URL")
+
+}
+generator client {
+  provider = "prisma-client-js"
+  output   = "app/generated/prisma/client"
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  faceData  FaceData?
+  classes   Class[]  @relation("ClassStudents")
+  sessions  Session[]
+  attendance Attendance[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FaceData {
+  id        String   @id @default(cuid())
+  studentId String   @unique
+  student   Student  @relation(fields: [studentId], references: [id])
+  data      Bytes    // Store face encoding data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Class {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  capacity    Int
+  location    String
+  schedule    String
+  instructor  String
+  isActive    Boolean   @default(true)
+  students    Student[] @relation("ClassStudents")
+  sessions    Session[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("classes")
+}
+
+model Session {
+  id          String       @id @default(cuid())
+  name        String
+  startTime   DateTime
+  endTime     DateTime
+  classId     String
+  class       Class        @relation(fields: [classId], references: [id])
+  students    Student[]
+  attendance  Attendance[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id])
+  status    String   // PRESENT, ABSENT, LATE, ON_LEAVE
+  timestamp DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+} 
