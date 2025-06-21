@@ -13,10 +13,41 @@ export async function GET(request: NextRequest) {
       include: {
         class: {
           include: {
-            students: true,
+            teacher: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                  }
+                }
+              }
+            },
+            students: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                  }
+                }
+              }
+            },
           },
         },
-        students: true,
+        students: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
       },
     });
 
@@ -47,8 +78,43 @@ export async function POST(request: NextRequest) {
         classId,
       },
       include: {
-        class: true,
-        students: true,
+        class: {
+          include: {
+            teacher: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                  }
+                }
+              }
+            },
+            students: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                  }
+                }
+              }
+            },
+          },
+        },
+        students: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
       },
     });
 

@@ -12,7 +12,28 @@ export async function GET() {
 
     const classes = await prisma.class.findMany({
       include: {
-        students: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
+        students: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
         sessions: true,
       },
       orderBy: {
@@ -27,8 +48,8 @@ export async function GET() {
       description: cls.description,
       capacity: cls.capacity,
       location: cls.location,
-      schedule: cls.schedule,
-      instructor: cls.instructor,
+      instructor: cls.teacher.name,
+      teacherId: cls.teacherId,
       studentCount: cls.students.length,
       isActive: cls.isActive,
       createdAt: cls.createdAt.toISOString(),
@@ -51,12 +72,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description, capacity, location, schedule, instructor } = body
+    const { name, description, capacity, location, teacherId } = body
 
     // Validation
-    if (!name || !description || !capacity || !location || !schedule || !instructor) {
+    if (!name || !description || !capacity || !location || !teacherId) {
       return NextResponse.json({ 
-        error: 'Missing required fields: name, description, capacity, location, schedule, instructor' 
+        error: 'Missing required fields: name, description, capacity, location, teacherId' 
       }, { status: 400 })
     }
 
@@ -66,6 +87,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Verify teacher exists
+    const teacher = await prisma.teacher.findUnique({
+      where: { id: teacherId }
+    })
+
+    if (!teacher) {
+      return NextResponse.json({ 
+        error: 'Teacher not found' 
+      }, { status: 404 })
+    }
+
     // Create new classroom in database
     const newClass = await prisma.class.create({
       data: {
@@ -73,12 +105,32 @@ export async function POST(request: NextRequest) {
         description,
         capacity: parseInt(capacity),
         location,
-        schedule,
-        instructor,
+        teacherId,
         isActive: true,
       },
       include: {
-        students: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
+        students: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
       }
     })
 
@@ -89,8 +141,8 @@ export async function POST(request: NextRequest) {
       description: newClass.description,
       capacity: newClass.capacity,
       location: newClass.location,
-      schedule: newClass.schedule,
-      instructor: newClass.instructor,
+      instructor: newClass.teacher.name,
+      teacherId: newClass.teacherId,
       studentCount: newClass.students.length,
       isActive: newClass.isActive,
       createdAt: newClass.createdAt.toISOString(),

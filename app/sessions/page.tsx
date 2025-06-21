@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,7 @@ import { Plus, Search } from "lucide-react"
 import { format } from "date-fns"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "@/components/ui/use-toast"
+import useSWR from "swr"
 
 type Session = {
   id: string
@@ -30,6 +31,9 @@ type Session = {
   class: {
     id: string
     name: string
+    teacher: {
+      name: string
+    }
   }
   students: Array<{
     id: string
@@ -40,13 +44,16 @@ type Session = {
 type Classroom = {
   id: string
   name: string
+  teacher: {
+    name: string
+  }
 }
+
+const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export default function SessionsPage() {
   const router = useRouter()
   const { isLoaded, isAuthenticated } = useAuth()
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [classrooms, setClassrooms] = useState<Classroom[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [newSession, setNewSession] = useState({
     name: "",
@@ -55,47 +62,22 @@ export default function SessionsPage() {
     classId: "",
   })
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!isLoaded) return
-    if (!isAuthenticated) {
-      router.push("/sign-in")
-      return
-    }
+  // Fetch data using SWR
+  const { data: sessionsData, error: sessionsError, mutate: mutateSessions } = useSWR<Session[]>(
+    isAuthenticated ? "/api/sessions" : null,
+    fetcher
+  )
 
-    const fetchData = async () => {
-      try {
-        const [sessionsRes, classroomsRes] = await Promise.all([
-          fetch("/api/sessions"),
-          fetch("/api/classrooms")
-        ])
+  const { data: classroomsData, error: classroomsError } = useSWR<{classrooms: Classroom[]}>(
+    isAuthenticated ? "/api/classrooms" : null,
+    fetcher
+  )
 
-        if (!sessionsRes.ok || !classroomsRes.ok) {
-          throw new Error("Failed to fetch data")
-        }
+  const sessions = sessionsData || []
+  const classrooms = classroomsData?.classrooms || []
 
-        const sessions = await sessionsRes.json()
-        const classrooms = await classroomsRes.json()
-
-        setSessions(sessions)
-        setClassrooms(classrooms.classrooms || classrooms)
-      } catch (error) {
-        console.error("Error fetching data:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load sessions and classrooms",
-          variant: "destructive",
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [isLoaded, isAuthenticated, router])
-
-  if (!isLoaded || loading) {
+  if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -105,9 +87,23 @@ export default function SessionsPage() {
     )
   }
 
+  if (!isAuthenticated) {
+    router.push("/sign-in")
+    return null
+  }
+
+  if (sessionsError || classroomsError) {
+    toast({
+      title: "Error",
+      description: "Failed to load sessions and classrooms",
+      variant: "destructive",
+    })
+  }
+
   const filteredSessions = sessions.filter((session) => 
     session.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    session.class.name.toLowerCase().includes(searchTerm.toLowerCase())
+    session.class.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    session.class.teacher.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,7 +144,7 @@ export default function SessionsPage() {
       }
 
       const createdSession = await response.json()
-      setSessions((prev) => [...prev, createdSession])
+      mutateSessions([...sessions, createdSession])
       setNewSession({ name: "", startTime: "", endTime: "", classId: "" })
       setOpen(false)
       toast({
@@ -231,7 +227,7 @@ export default function SessionsPage() {
                   <SelectContent>
                     {classrooms.map((classroom) => (
                       <SelectItem key={classroom.id} value={classroom.id}>
-                        {classroom.name}
+                        {classroom.name} - {classroom.teacher.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -273,7 +269,8 @@ export default function SessionsPage() {
               <TableHead>Name</TableHead>
               <TableHead>Start Time</TableHead>
               <TableHead>End Time</TableHead>
-              <TableHead>Classes</TableHead>
+              <TableHead>Class</TableHead>
+              <TableHead>Teacher</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -285,6 +282,7 @@ export default function SessionsPage() {
                 <TableCell>{format(new Date(session.startTime), "HH:mm")}</TableCell>
                 <TableCell>{format(new Date(session.endTime), "HH:mm")}</TableCell>
                 <TableCell>{session.class.name}</TableCell>
+                <TableCell>{session.class.teacher.name}</TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
                     <Button variant="outline" size="sm">
@@ -299,7 +297,7 @@ export default function SessionsPage() {
             ))}
             {filteredSessions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-4">
+                <TableCell colSpan={7} className="text-center py-4">
                   No sessions found
                 </TableCell>
               </TableRow>

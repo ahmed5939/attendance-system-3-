@@ -39,7 +39,10 @@ const fetcher = async (url: string) => {
 export default function StudentsPage() {
   const [isAddingStudent, setIsAddingStudent] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
-  const { data: students, error, mutate } = useSWR("/api/students", fetcher)
+  const { data: studentsData, error, mutate } = useSWR("/api/students", fetcher)
+
+  // Extract students array from the API response
+  const students = studentsData?.students || []
 
   const handleAddStudent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -53,23 +56,24 @@ export default function StudentsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name, userEmail: email }),
       })
 
       if (response.ok) {
         setIsAddingStudent(false)
         mutate()
       } else {
-        throw new Error("Failed to add student")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to add student")
       }
     } catch (error) {
       console.error("Error adding student:", error)
-      alert("Failed to add student. Please try again.")
+      alert(error instanceof Error ? error.message : "Failed to add student. Please try again.")
     }
   }
 
   if (error) return <div>Failed to load students</div>
-  if (!students) return <div>Loading...</div>
+  if (!studentsData) return <div>Loading...</div>
 
   return (
     <div className="container mx-auto py-10">
@@ -124,7 +128,7 @@ export default function StudentsPage() {
               {students.map((student: any) => (
                 <TableRow key={student.id}>
                   <TableCell>{student.name}</TableCell>
-                  <TableCell>{student.email}</TableCell>
+                  <TableCell>{student.user?.email || 'N/A'}</TableCell>
                   <TableCell>
                     {student.faceData ? "Registered" : "Not Registered"}
                   </TableCell>
@@ -154,6 +158,13 @@ export default function StudentsPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {students.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-4">
+                    No students found
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

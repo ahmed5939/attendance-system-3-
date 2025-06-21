@@ -16,7 +16,7 @@ export async function GET() {
         },
       },
       include: {
-        classroom: true,
+        class: true,
         students: {
           include: {
             faceData: true,

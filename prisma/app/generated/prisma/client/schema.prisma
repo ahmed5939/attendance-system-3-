@@ -8,10 +8,44 @@ generator client {
   output   = "app/generated/prisma/client"
 }
 
+model UserWhitelist {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  role              UserRole
+  name              String
+  department        String? // For teachers
+  isActive          Boolean   @default(true)
+  invitationSent    Boolean   @default(false)
+  invitationSentAt  DateTime?
+  clerkInvitationId String? // Store Clerk invitation ID
+  accountCreated    Boolean   @default(false) // Track if user has completed account setup
+  accountCreatedAt  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique // Clerk user ID
+  email     String   @unique
+  role      UserRole
+  student   Student?
+  teacher   Teacher?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
 model Student {
   id         String       @id @default(cuid())
+  userId     String       @unique
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   name       String
-  email      String       @unique
   faceData   FaceData?
   classes    Class[]      @relation("ClassStudents")
   sessions   Session[]
@@ -20,10 +54,21 @@ model Student {
   updatedAt  DateTime     @updatedAt
 }
 
+model Teacher {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  department String?
+  classes    Class[] // Classes taught by this teacher
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 model FaceData {
   id        String   @id @default(cuid())
   studentId String   @unique
-  student   Student  @relation(fields: [studentId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   data      Bytes // Store face encoding data
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -35,9 +80,9 @@ model Class {
   description String
   capacity    Int
   location    String
-  schedule    String
-  instructor  String
   isActive    Boolean   @default(true)
+  teacherId   String
+  teacher     Teacher   @relation(fields: [teacherId], references: [id])
   students    Student[] @relation("ClassStudents")
   sessions    Session[]
   createdAt   DateTime  @default(now())
@@ -52,7 +97,7 @@ model Session {
   startTime  DateTime
   endTime    DateTime
   classId    String
-  class      Class        @relation(fields: [classId], references: [id])
+  class      Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
   students   Student[]
   attendance Attendance[]
   createdAt  DateTime     @default(now())
@@ -62,9 +107,9 @@ model Session {
 model Attendance {
   id        String   @id @default(cuid())
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id])
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   status    String // PRESENT, ABSENT, LATE, ON_LEAVE
   timestamp DateTime
   createdAt DateTime @default(now())

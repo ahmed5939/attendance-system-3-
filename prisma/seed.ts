@@ -1,68 +1,121 @@
-import { PrismaClient } from '@/app/generated/prisma/client'
+import { PrismaClient } from './app/generated/prisma/client'
 
 const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 Seeding database...')
 
-  // Create sample classes
-  const classes = [
+  // Clear existing data
+  await prisma.attendance.deleteMany()
+  await prisma.session.deleteMany()
+  await prisma.student.deleteMany()
+  await prisma.teacher.deleteMany()
+  await prisma.user.deleteMany()
+  await prisma.userWhitelist.deleteMany()
+  await prisma.class.deleteMany()
+
+  // Add admin users to whitelist
+  const adminUsers = [
     {
-      name: "Computer Science 101",
-      description: "Introduction to Computer Science and Programming",
-      capacity: 30,
-      location: "Room 201, Building A",
-      schedule: "Monday, Wednesday, Friday 9:00 AM - 10:30 AM",
-      instructor: "Dr. Sarah Johnson",
-      isActive: true,
+      email: 'admin@school.edu',
+      role: 'ADMIN' as const,
+      name: 'System Administrator',
+      department: null,
     },
     {
-      name: "Mathematics 201",
-      description: "Advanced Calculus and Linear Algebra",
-      capacity: 25,
-      location: "Room 305, Building B",
-      schedule: "Tuesday, Thursday 2:00 PM - 3:30 PM",
-      instructor: "Prof. Michael Chen",
-      isActive: true,
+      email: 'principal@school.edu',
+      role: 'ADMIN' as const,
+      name: 'School Principal',
+      department: null,
     },
-    {
-      name: "Physics Lab",
-      description: "Hands-on Physics Laboratory Sessions",
-      capacity: 20,
-      location: "Lab 102, Science Building",
-      schedule: "Wednesday 1:00 PM - 4:00 PM",
-      instructor: "Dr. Emily Rodriguez",
-      isActive: true,
-    },
-    {
-      name: "English Literature",
-      description: "Study of Classic and Modern Literature",
-      capacity: 35,
-      location: "Room 150, Humanities Building",
-      schedule: "Monday, Wednesday 11:00 AM - 12:30 PM",
-      instructor: "Prof. James Wilson",
-      isActive: true,
-    },
-    {
-      name: "Chemistry 101",
-      description: "Introduction to General Chemistry",
-      capacity: 28,
-      location: "Lab 205, Science Building",
-      schedule: "Tuesday, Thursday 10:00 AM - 11:30 AM",
-      instructor: "Dr. Lisa Thompson",
-      isActive: true,
-    }
   ]
 
-  for (const classData of classes) {
-    await prisma.class.upsert({
-      where: { name: classData.name },
-      update: {},
-      create: classData,
+  // Add teachers to whitelist
+  const teachers = [
+    {
+      email: 'john.doe@school.edu',
+      role: 'TEACHER' as const,
+      name: 'John Doe',
+      department: 'Computer Science',
+    },
+    {
+      email: 'jane.smith@school.edu',
+      role: 'TEACHER' as const,
+      name: 'Jane Smith',
+      department: 'Mathematics',
+    },
+    {
+      email: 'mike.johnson@school.edu',
+      role: 'TEACHER' as const,
+      name: 'Mike Johnson',
+      department: 'Physics',
+    },
+  ]
+
+  // Add students to whitelist
+  const students = [
+    {
+      email: 'alice.student@school.edu',
+      role: 'STUDENT' as const,
+      name: 'Alice Student',
+      department: null,
+    },
+    {
+      email: 'bob.student@school.edu',
+      role: 'STUDENT' as const,
+      name: 'Bob Student',
+      department: null,
+    },
+    {
+      email: 'charlie.student@school.edu',
+      role: 'STUDENT' as const,
+      name: 'Charlie Student',
+      department: null,
+    },
+  ]
+
+  // Create whitelist entries
+  const allUsers = [...adminUsers, ...teachers, ...students]
+  
+  for (const user of allUsers) {
+    await prisma.userWhitelist.create({
+      data: user
     })
   }
 
+  console.log(`✅ Added ${allUsers.length} users to whitelist`)
+
+  // Create some sample classes (these will be linked to teachers when they sign up)
+  const sampleClasses = [
+    {
+      name: 'Introduction to Computer Science',
+      description: 'Basic programming concepts and problem solving',
+      capacity: 30,
+      location: 'Room 101',
+      isActive: true,
+    },
+    {
+      name: 'Advanced Mathematics',
+      description: 'Calculus and linear algebra',
+      capacity: 25,
+      location: 'Room 202',
+      isActive: true,
+    },
+    {
+      name: 'Physics Lab',
+      description: 'Hands-on physics experiments',
+      capacity: 20,
+      location: 'Lab 301',
+      isActive: true,
+    },
+  ]
+
   console.log('✅ Database seeded successfully!')
+  console.log('\n📋 Next steps:')
+  console.log('1. Run: npx prisma db push')
+  console.log('2. Set up Clerk webhook to: /api/webhooks/clerk')
+  console.log('3. Add CLERK_WEBHOOK_SECRET to your .env file')
+  console.log('4. Sign up with one of the admin emails to get started')
 }
 
 main()

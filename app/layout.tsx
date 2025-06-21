@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Sidebar } from '@/components/sidebar'
+import { UserSyncProvider } from '@/components/user-sync-provider'
 import {
   ClerkProvider,
   SignInButton,
@@ -30,7 +31,7 @@ export default function RootLayout({
     >
       <html lang="en" suppressHydrationWarning>
         <body className={inter.className}>
-          <SignedOut>
+            <SignedOut>
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
               <div className="max-w-md w-full space-y-8 p-8">
                 <div className="text-center">
@@ -51,15 +52,17 @@ export default function RootLayout({
                 </div>
               </div>
             </div>
-          </SignedOut>
-          <SignedIn>
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-y-auto bg-gray-50">
-                {children}
-              </main>
-            </div>
-          </SignedIn>
+            </SignedOut>
+            <SignedIn>
+              <UserSyncProvider>
+                <div className="flex h-screen">
+                  <Sidebar />
+                  <main className="flex-1 overflow-y-auto bg-gray-50">
+                    {children}
+                  </main>
+                </div>
+              </UserSyncProvider>
+            </SignedIn>
         </body>
       </html>
     </ClerkProvider>

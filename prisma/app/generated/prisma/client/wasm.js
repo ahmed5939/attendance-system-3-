@@ -120,10 +120,44 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   Serializable: 'Serializable'
 });
 
+exports.Prisma.UserWhitelistScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  role: 'role',
+  name: 'name',
+  department: 'department',
+  isActive: 'isActive',
+  invitationSent: 'invitationSent',
+  invitationSentAt: 'invitationSentAt',
+  clerkInvitationId: 'clerkInvitationId',
+  accountCreated: 'accountCreated',
+  accountCreatedAt: 'accountCreatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.UserScalarFieldEnum = {
+  id: 'id',
+  clerkId: 'clerkId',
+  email: 'email',
+  role: 'role',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.StudentScalarFieldEnum = {
   id: 'id',
+  userId: 'userId',
   name: 'name',
-  email: 'email',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.TeacherScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  name: 'name',
+  department: 'department',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -142,9 +176,8 @@ exports.Prisma.ClassScalarFieldEnum = {
   description: 'description',
   capacity: 'capacity',
   location: 'location',
-  schedule: 'schedule',
-  instructor: 'instructor',
   isActive: 'isActive',
+  teacherId: 'teacherId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -179,9 +212,21 @@ exports.Prisma.QueryMode = {
   insensitive: 'insensitive'
 };
 
+exports.Prisma.NullsOrder = {
+  first: 'first',
+  last: 'last'
+};
+exports.UserRole = exports.$Enums.UserRole = {
+  STUDENT: 'STUDENT',
+  TEACHER: 'TEACHER',
+  ADMIN: 'ADMIN'
+};
 
 exports.Prisma.ModelName = {
+  UserWhitelist: 'UserWhitelist',
+  User: 'User',
   Student: 'Student',
+  Teacher: 'Teacher',
   FaceData: 'FaceData',
   Class: 'Class',
   Session: 'Session',

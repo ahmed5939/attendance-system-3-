@@ -8,17 +8,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { RefreshCw, Play, Pause } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { useUserProfile } from "@/hooks/use-user-profile"
 import useSWR from 'swr'
 
 const fetcher = (url) => fetch(url).then((res) => res.json())
 
 export default function FaceRecognitionPage() {
+  const { isLoaded, isAuthenticated } = useAuth()
+  const { data: userProfile } = useUserProfile()
   const [isProcessing, setIsProcessing] = useState(false)
   const [cronEnabled, setCronEnabled] = useState(true)
   const [cronSchedule, setCronSchedule] = useState("0 */1 * * *")
   const [selectedFile, setSelectedFile] = useState(null)
   const [processingProgress, setProcessingProgress] = useState(0)
-  const [user, setUser] = useState(null)
   const videoRef = useRef(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [currentSession, setCurrentSession] = useState(null)
@@ -35,21 +38,37 @@ export default function FaceRecognitionPage() {
     }
   }, [sessions])
 
-  useEffect(() => {
-    // In a real app, this would be a proper auth check
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
-    }
-  }, [])
+  // Check if user is admin
+  const isAdmin = userProfile?.role === 'ADMIN'
 
-  // Redirect if not admin (in a real app, this would be server-side)
-  if (user && user.role !== "admin") {
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Loading...</h1>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-          <p>You don't have permission to view this page.</p>
+          <p>You need to be logged in to access this page.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Admin-only access
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+          <p>You need administrator privileges to access the face recognition system.</p>
         </div>
       </div>
     )
@@ -200,76 +219,122 @@ export default function FaceRecognitionPage() {
                     defaultValue="0.7"
                     disabled={!cronEnabled}
                   />
-                  <span className="w-12 text-center">0.7</span>
+                  <span className="text-sm">0.7</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Higher values require more precise matches (fewer false positives, more false negatives)
-                </p>
+                <p className="text-xs text-muted-foreground">Minimum confidence level for face recognition</p>
               </div>
             </CardContent>
             <CardFooter>
-              <Button>Save Settings</Button>
+              <Button disabled={!cronEnabled}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Save Settings
+              </Button>
             </CardFooter>
           </Card>
         </TabsContent>
 
         <TabsContent value="live" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Live Processing</CardTitle>
-              <CardDescription>
-                {currentSession 
-                  ? `Current Session: ${currentSession.name} (${new Date(currentSession.startTime).toLocaleTimeString()} - ${new Date(currentSession.endTime).toLocaleTimeString()})`
-                  : 'No active session found'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="relative w-full max-w-2xl mx-auto border rounded-md overflow-hidden bg-black aspect-video">
-                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
-                  {!isStreaming && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
-                      <p>Camera is off</p>
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Live Camera Feed</CardTitle>
+                <CardDescription>Real-time face recognition processing</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="relative">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-64 bg-gray-900 rounded-lg"
+                  />
+                  <div className="absolute top-2 right-2">
+                    <Button
+                      onClick={toggleStream}
+                      variant={isStreaming ? "destructive" : "default"}
+                      size="sm"
+                    >
+                      {isStreaming ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      {isStreaming ? "Stop" : "Start"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recognized Students</CardTitle>
+                <CardDescription>Students detected in current session</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recognizedStudents.length > 0 ? (
+                    recognizedStudents.map((student, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-green-50 rounded">
+                        <span className="font-medium">{student.name}</span>
+                        <span className="text-sm text-green-600">Present</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground">No students recognized yet</p>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </div>
 
-                {isStreaming && (
-                  <div className="p-4 border rounded-md bg-muted/50">
-                    <h3 className="font-medium mb-2">Recognition Results:</h3>
-                    {recognizedStudents.length > 0 ? (
-                      <div className="space-y-2">
-                        {recognizedStudents.map((student) => (
-                          <div key={student.studentId} className="flex items-center justify-between">
-                            <span>{student.name}</span>
-                            <span className="text-sm text-muted-foreground">
-                              Confidence: {(student.confidence * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm">No students recognized yet</p>
-                    )}
-                  </div>
-                )}
+          <Card>
+            <CardHeader>
+              <CardTitle>Manual Processing</CardTitle>
+              <CardDescription>Process images manually for testing</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="image">Upload Image</Label>
+                <Input
+                  id="image"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={toggleStream} disabled={!currentSession}>
-                {isStreaming ? (
+
+              {selectedFile && (
+                <div className="space-y-2">
+                  <Label>Preview</Label>
+                  <img
+                    src={selectedFile.preview}
+                    alt="Preview"
+                    className="w-32 h-32 object-cover rounded"
+                  />
+                </div>
+              )}
+
+              <Button onClick={startProcessing} disabled={!selectedFile || isProcessing}>
+                {isProcessing ? (
                   <>
-                    <Pause className="mr-2 h-4 w-4" />
-                    Stop Processing
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
                   </>
                 ) : (
-                  <>
-                    <Play className="mr-2 h-4 w-4" />
-                    Start Processing
-                  </>
+                  "Process Image"
                 )}
               </Button>
-            </CardFooter>
+
+              {isProcessing && (
+                <div className="space-y-2">
+                  <Label>Progress</Label>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${processingProgress}%` }}
+                    />
+                  </div>
+                  <span className="text-sm text-muted-foreground">{processingProgress}%</span>
+                </div>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
 
@@ -277,54 +342,21 @@ export default function FaceRecognitionPage() {
           <Card>
             <CardHeader>
               <CardTitle>Processing Logs</CardTitle>
-              <CardDescription>View recent face recognition processing logs</CardDescription>
+              <CardDescription>Recent face recognition processing activities</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="rounded-md border">
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Automated Processing</h3>
-                        <p className="text-sm text-muted-foreground">Today, 08:30 AM</p>
-                      </div>
-                      <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">Success</span>
-                    </div>
-                    <p className="mt-2 text-sm">Processed 125 frames, recognized 48 students</p>
-                  </div>
-
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Manual Processing</h3>
-                        <p className="text-sm text-muted-foreground">Yesterday, 02:15 PM</p>
-                      </div>
-                      <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">Success</span>
-                    </div>
-                    <p className="mt-2 text-sm">Processed 1 image, recognized 12 students</p>
-                  </div>
-
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Automated Processing</h3>
-                        <p className="text-sm text-muted-foreground">Yesterday, 07:30 AM</p>
-                      </div>
-                      <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">Partial</span>
-                    </div>
-                    <p className="mt-2 text-sm">Processed 120 frames, recognized 45 students, 2 unrecognized</p>
-                  </div>
-
-                  <div className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Automated Processing</h3>
-                        <p className="text-sm text-muted-foreground">2 days ago, 07:30 AM</p>
-                      </div>
-                      <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">Failed</span>
-                    </div>
-                    <p className="mt-2 text-sm">Connection to CCTV failed. Check camera connection.</p>
-                  </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span>Session started - Class A</span>
+                  <span className="text-sm text-muted-foreground">2 minutes ago</span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span>John Doe recognized (95% confidence)</span>
+                  <span className="text-sm text-muted-foreground">1 minute ago</span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span>Jane Smith recognized (87% confidence)</span>
+                  <span className="text-sm text-muted-foreground">30 seconds ago</span>
                 </div>
               </div>
             </CardContent>

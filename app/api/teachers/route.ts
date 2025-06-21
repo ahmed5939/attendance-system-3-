@@ -1,6 +1,6 @@
-import { NextResponse, NextRequest } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
+import { prisma } from "@/lib/prisma"
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const students = await prisma.student.findMany({
+    const teachers = await prisma.teacher.findMany({
       include: {
         user: {
           select: {
@@ -19,25 +19,25 @@ export async function GET(request: NextRequest) {
             role: true,
           }
         },
-        faceData: true,
-        classes: true,
+        classes: {
+          include: {
+            students: true,
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'
       }
     })
 
-    return NextResponse.json({ students })
+    return NextResponse.json({ teachers })
   } catch (error) {
-    console.error("Error fetching students:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch students" },
-      { status: 500 }
-    )
+    console.error('Error fetching teachers:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth()
     
@@ -45,8 +45,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, userEmail } = await req.json()
+    const body = await request.json()
+    const { name, department, userEmail } = body
 
+    // Validation
     if (!name || !userEmail) {
       return NextResponse.json({ 
         error: 'Missing required fields: name, userEmail' 
@@ -70,29 +72,30 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // Check if user already has a student record
-    const existingStudent = await prisma.student.findUnique({
+    // Check if user already has a teacher record
+    const existingTeacher = await prisma.teacher.findUnique({
       where: { userId: user.id }
     })
 
-    if (existingStudent) {
+    if (existingTeacher) {
       return NextResponse.json({ 
-        error: 'User is already a student' 
+        error: 'User is already a teacher' 
       }, { status: 400 })
     }
 
-    // Create student record and update user role
-    const student = await prisma.$transaction(async (tx) => {
-      // Update user role to STUDENT
+    // Create teacher record and update user role
+    const teacher = await prisma.$transaction(async (tx) => {
+      // Update user role to TEACHER
       await tx.user.update({
         where: { id: user.id },
-        data: { role: 'STUDENT' }
+        data: { role: 'TEACHER' }
       })
 
-      // Create student record
-      return await tx.student.create({
-      data: {
-        name,
+      // Create teacher record
+      return await tx.teacher.create({
+        data: {
+          name,
+          department,
           userId: user.id,
         },
         include: {
@@ -103,21 +106,17 @@ export async function POST(req: NextRequest) {
               role: true,
             }
           },
-          faceData: true,
-          classes: true,
+          classes: true
         }
       })
     })
 
     return NextResponse.json({ 
-      message: 'Student created successfully',
-      student 
+      message: 'Teacher created successfully',
+      teacher 
     }, { status: 201 })
   } catch (error) {
-    console.error("Error creating student:", error)
-    return NextResponse.json(
-      { error: "Failed to create student" },
-      { status: 500 }
-    )
+    console.error('Error creating teacher:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 
