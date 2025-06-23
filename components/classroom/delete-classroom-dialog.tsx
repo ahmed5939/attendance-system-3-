@@ -20,8 +20,8 @@ interface Classroom {
   description: string
   capacity: number
   location: string
-  schedule: string
   instructor: string
+  teacherId: string
   studentCount: number
   isActive: boolean
   createdAt: string

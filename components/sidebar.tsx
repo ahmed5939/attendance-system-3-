@@ -48,18 +48,6 @@ const navigation = [
     icon: FileCheck,
     roles: ["STUDENT", "TEACHER", "ADMIN"]
   },
-  {
-    name: "Face Recognition",
-    href: "/face-recognition",
-    icon: Camera,
-    roles: ["STUDENT", "TEACHER", "ADMIN"]
-  },
-  {
-    name: "Settings",
-    href: "/settings",
-    icon: Settings,
-    roles: ["STUDENT", "TEACHER", "ADMIN"]
-  },
 ]
 
 const adminNavigation = [

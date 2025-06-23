@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Camera, Upload, CheckCircle, XCircle } from "lucide-react"
+import { Camera, Upload, CheckCircle, XCircle, FileImage } from "lucide-react"
 
 interface FaceDataCaptureProps {
   studentId: string
@@ -14,19 +14,79 @@ export function FaceDataCapture({ studentId, onSuccess }: FaceDataCaptureProps) 
   const [isCapturing, setIsCapturing] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopCapture()
+    }
+  }, [])
 
   const startCapture = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      setCameraError(null)
+      console.log("Requesting camera access...")
+      
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera access is not supported in this browser")
+      }
+
+      // Request camera access with specific constraints
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user" // Use front camera
+        },
+        audio: false
+      })
+      
+      console.log("Camera access granted:", stream)
+      
+      // Small delay to ensure video element is ready
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         setIsCapturing(true)
+        
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          console.log("Video metadata loaded")
+          videoRef.current?.play().catch(err => {
+            console.error("Error playing video:", err)
+          })
+        }
+        
+        videoRef.current.onerror = (error) => {
+          console.error("Video error:", error)
+          setCameraError("Error loading video stream")
+        }
+      } else {
+        console.error("Video element not found in DOM")
+        throw new Error("Video element not found")
       }
     } catch (error) {
       console.error("Error accessing camera:", error)
-      alert("Could not access camera. Please check permissions.")
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          setCameraError("Camera access denied. Please allow camera permissions and try again.")
+        } else if (error.name === 'NotFoundError') {
+          setCameraError("No camera found. Please connect a camera and try again.")
+        } else if (error.name === 'NotSupportedError') {
+          setCameraError("Camera access is not supported in this browser.")
+        } else {
+          setCameraError(`Camera error: ${error.message}`)
+        }
+      } else {
+        setCameraError("Could not access camera. Please check permissions and try again.")
+      }
     }
   }
 
@@ -55,6 +115,34 @@ export function FaceDataCapture({ studentId, onSuccess }: FaceDataCaptureProps) 
     }
   }
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const result = e.target?.result as string
+      setPreview(result)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click()
+  }
+
   const handleUpload = async () => {
     if (!preview) return
 
@@ -71,14 +159,17 @@ export function FaceDataCapture({ studentId, onSuccess }: FaceDataCaptureProps) 
       })
 
       if (response.ok) {
+        const result = await response.json()
+        console.log('Face data saved successfully:', result)
         onSuccess?.()
         stopCapture()
       } else {
-        throw new Error('Failed to upload face data')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload face data')
       }
     } catch (error) {
       console.error('Error uploading face data:', error)
-      alert('Failed to upload face data. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to upload face data. Please try again.')
     } finally {
       setIsProcessing(false)
     }
@@ -91,20 +182,21 @@ export function FaceDataCapture({ studentId, onSuccess }: FaceDataCaptureProps) 
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-gray-100">
-          {isCapturing ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              className="h-full w-full object-cover"
-            />
-          ) : preview ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`h-full w-full object-cover ${!isCapturing ? 'hidden' : ''}`}
+          />
+          {preview && !isCapturing && (
             <img
               src={preview}
               alt="Captured face"
               className="h-full w-full object-cover"
             />
-          ) : (
+          )}
+          {!isCapturing && !preview && (
             <div className="flex h-full items-center justify-center">
               <Camera className="h-12 w-12 text-gray-400" />
             </div>
@@ -112,12 +204,33 @@ export function FaceDataCapture({ studentId, onSuccess }: FaceDataCaptureProps) 
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+
+        {cameraError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-700 text-sm">{cameraError}</p>
+          </div>
+        )}
+
         <div className="flex justify-center gap-4">
           {!isCapturing && !preview && (
-            <Button onClick={startCapture}>
-              <Camera className="mr-2 h-4 w-4" />
-              Start Camera
-            </Button>
+            <>
+              <Button onClick={startCapture} disabled={!!cameraError}>
+                <Camera className="mr-2 h-4 w-4" />
+                Use Camera
+              </Button>
+              <Button variant="outline" onClick={triggerFileUpload}>
+                <FileImage className="mr-2 h-4 w-4" />
+                Upload Image
+              </Button>
+            </>
           )}
 
           {isCapturing && (

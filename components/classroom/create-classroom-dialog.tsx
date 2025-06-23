@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
+import useSWR from "swr"
 import {
   Dialog,
   DialogContent,
@@ -17,19 +18,34 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Loading } from "@/components/ui/loading"
-import { Building2, AlertCircle } from "lucide-react"
+import { Building2, AlertCircle, ChevronDown } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const createClassroomSchema = z.object({
   name: z.string().min(1, "Classroom name is required").max(100, "Name must be less than 100 characters"),
   description: z.string().min(1, "Description is required").max(500, "Description must be less than 500 characters"),
   capacity: z.number().min(1, "Capacity must be at least 1").max(100, "Capacity cannot exceed 100"),
   location: z.string().min(1, "Location is required").max(200, "Location must be less than 200 characters"),
-  schedule: z.string().min(1, "Schedule is required").max(200, "Schedule must be less than 200 characters"),
-  instructor: z.string().min(1, "Instructor is required").max(100, "Instructor name must be less than 100 characters"),
+  teacherId: z.string().min(1, "Teacher selection is required"),
 })
 
 type CreateClassroomForm = z.infer<typeof createClassroomSchema>
+
+interface Teacher {
+  id: string
+  name: string
+  department?: string
+  user: {
+    email: string
+  }
+}
 
 interface CreateClassroomDialogProps {
   open: boolean
@@ -37,15 +53,26 @@ interface CreateClassroomDialogProps {
   onSuccess: () => void
 }
 
+// Fetcher function for SWR
+const fetcher = (url: string) => fetch(url).then(res => res.json())
+
 export function CreateClassroomDialog({ open, onOpenChange, onSuccess }: CreateClassroomDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Fetch teachers using SWR
+  const { data: teachersData, error: teachersError, isLoading: teachersLoading } = useSWR<{ teachers: Teacher[] }>(
+    open ? '/api/teachers' : null,
+    fetcher
+  )
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
+    watch,
   } = useForm<CreateClassroomForm>({
     resolver: zodResolver(createClassroomSchema),
     defaultValues: {
@@ -53,10 +80,11 @@ export function CreateClassroomDialog({ open, onOpenChange, onSuccess }: CreateC
       description: "",
       capacity: 30,
       location: "",
-      schedule: "",
-      instructor: "",
+      teacherId: "",
     },
   })
+
+  const selectedTeacherId = watch("teacherId")
 
   const onSubmit = async (data: CreateClassroomForm) => {
     setIsLoading(true)
@@ -155,14 +183,38 @@ export function CreateClassroomDialog({ open, onOpenChange, onSuccess }: CreateC
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="instructor">Instructor *</Label>
-              <Input
-                id="instructor"
-                {...register("instructor")}
-                placeholder="e.g., Dr. Sarah Johnson"
-              />
-              {errors.instructor && (
-                <p className="text-sm text-red-600">{errors.instructor.message}</p>
+              <Label htmlFor="teacherId">Teacher *</Label>
+              {teachersLoading ? (
+                <div className="flex items-center justify-center h-10 border rounded-md">
+                  <Loading size="sm" />
+                </div>
+              ) : teachersError ? (
+                <div className="text-sm text-red-600">Failed to load teachers</div>
+              ) : (
+                <Select
+                  value={selectedTeacherId}
+                  onValueChange={(value) => setValue("teacherId", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a teacher" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teachersData?.teachers?.map((teacher) => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{teacher.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {teacher.user.email}
+                            {teacher.department && ` • ${teacher.department}`}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {errors.teacherId && (
+                <p className="text-sm text-red-600">{errors.teacherId.message}</p>
               )}
             </div>
           </div>
@@ -179,18 +231,6 @@ export function CreateClassroomDialog({ open, onOpenChange, onSuccess }: CreateC
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="schedule">Schedule *</Label>
-            <Input
-              id="schedule"
-              {...register("schedule")}
-              placeholder="e.g., Monday, Wednesday, Friday 9:00 AM - 10:30 AM"
-            />
-            {errors.schedule && (
-              <p className="text-sm text-red-600">{errors.schedule.message}</p>
-            )}
-          </div>
-
           <DialogFooter>
             <Button
               type="button"
@@ -200,9 +240,12 @@ export function CreateClassroomDialog({ open, onOpenChange, onSuccess }: CreateC
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || teachersLoading}>
               {isLoading ? (
-                <Loading size="sm" />
+                <>
+                  <Loading size="sm" className="mr-2" />
+                  Creating...
+                </>
               ) : (
                 "Create Classroom"
               )}

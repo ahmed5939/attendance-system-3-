@@ -170,6 +170,14 @@ exports.Prisma.FaceDataScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.FaceImageScalarFieldEnum = {
+  id: 'id',
+  studentId: 'studentId',
+  image: 'image',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.ClassScalarFieldEnum = {
   id: 'id',
   name: 'name',
@@ -202,9 +210,42 @@ exports.Prisma.AttendanceScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.SystemLogScalarFieldEnum = {
+  id: 'id',
+  level: 'level',
+  message: 'message',
+  meta: 'meta',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.BackupLogScalarFieldEnum = {
+  id: 'id',
+  status: 'status',
+  type: 'type',
+  path: 'path',
+  duration: 'duration',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.SystemSettingScalarFieldEnum = {
+  id: 'id',
+  key: 'key',
+  value: 'value',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
+};
+
+exports.Prisma.NullableJsonNullValueInput = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull
+};
+
+exports.Prisma.JsonNullValueInput = {
+  JsonNull: Prisma.JsonNull
 };
 
 exports.Prisma.QueryMode = {
@@ -215,6 +256,12 @@ exports.Prisma.QueryMode = {
 exports.Prisma.NullsOrder = {
   first: 'first',
   last: 'last'
+};
+
+exports.Prisma.JsonNullValueFilter = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull,
+  AnyNull: Prisma.AnyNull
 };
 exports.UserRole = exports.$Enums.UserRole = {
   STUDENT: 'STUDENT',
@@ -228,9 +275,13 @@ exports.Prisma.ModelName = {
   Student: 'Student',
   Teacher: 'Teacher',
   FaceData: 'FaceData',
+  FaceImage: 'FaceImage',
   Class: 'Class',
   Session: 'Session',
-  Attendance: 'Attendance'
+  Attendance: 'Attendance',
+  SystemLog: 'SystemLog',
+  BackupLog: 'BackupLog',
+  SystemSetting: 'SystemSetting'
 };
 
 /**

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
+import os from 'os'
+import { createLog } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,8 +11,11 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    
+    // Log this action
+    createLog('INFO', `System stats fetched by user ${userId}`)
 
-    // Get basic stats
+    // Get basic stats from the database
     const [
       totalStudents,
       totalTeachers,
@@ -48,13 +53,37 @@ export async function GET(request: NextRequest) {
       })
     ])
 
+    // Simulate system-level stats
+    const cpuUsage = Math.random() * 100
+    const totalMemory = os.totalmem()
+    const freeMemory = os.freemem()
+    const usedMemory = totalMemory - freeMemory
+    const memoryUsage = (usedMemory / totalMemory) * 100
+    const uptime = os.uptime()
+
+    const systemHealth = 98 // Placeholder
+
     return NextResponse.json({
+      // Database stats
       totalStudents,
       totalTeachers,
       totalClasses,
       activeSessions,
       presentToday,
-      absentToday
+      absentToday,
+
+      // System stats (simulated)
+      cpuUsage,
+      memory: {
+        total: totalMemory,
+        used: usedMemory,
+        free: freeMemory,
+        usagePercentage: memoryUsage
+      },
+      uptime,
+      health: systemHealth,
+      databaseStatus: "Online",
+      lastSync: new Date().toISOString()
     })
   } catch (error) {
     console.error('Error fetching stats:', error)

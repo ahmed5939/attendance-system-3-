@@ -1,14 +1,11 @@
 # Face Recognition API Server
 
-A Python Flask server that provides face recognition capabilities for the attendance system. This server handles face registration, recognition, and management using the `face_recognition` library.
+A Python Flask server that provides face recognition capabilities for the attendance system. This server handles face recognition using the `face_recognition` library.
 
 ## Features
 
-- **Face Registration**: Register student faces with their IDs
 - **Face Recognition**: Recognize faces in images and return student information
-- **Face Management**: List and delete registered faces
 - **Configuration Management**: Adjust recognition thresholds and settings
-- **SQLite Database**: Store face encodings locally
 - **RESTful API**: Clean HTTP endpoints for integration
 
 ## Prerequisites
@@ -77,51 +74,72 @@ python app.py
 
 The server will start on `http://localhost:5000`
 
-### API Endpoints
+## API Endpoints
 
-#### Health Check
+### Health Check
 ```http
 GET /health
 ```
-
-#### Register Face
-```http
-POST /register
-Content-Type: application/json
-
+Response:
+```json
 {
-  "student_id": "student123",
-  "student_name": "John Doe",
-  "image_data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00.000000",
+  "service": "face-recognition-api"
 }
 ```
 
-#### Recognize Faces
+### Recognize Faces
 ```http
 POST /recognize
 Content-Type: application/json
 
 {
-  "image_data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+  "image_data": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ...",
+  "student_images": [
+    {
+      "studentId": "student123",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+    },
+    // ... more students
+  ]
+}
+```
+Response:
+```json
+{
+  "success": true,
+  "present": [
+    { "id": "student123", "name": "John Doe", "email": "john@example.com" }
+    // ...
+  ],
+  "absent": [
+    { "id": "student456", "name": "Jane Smith", "email": "jane@example.com" }
+    // ...
+  ],
+  "total_faces_detected": 3
 }
 ```
 
-#### Get All Registered Faces
-```http
-GET /faces
-```
-
-#### Delete Face
-```http
-DELETE /faces/{student_id}
-```
-
-#### Get Configuration
+### Get Configuration
 ```http
 GET /config
 ```
+Response:
+```json
+{
+  "success": true,
+  "config": {
+    "face_recognition_threshold": 0.6,
+    "max_faces_per_image": 10,
+    "min_face_size": 20
+  }
+}
+```
 
-#### Update Configuration
+### Update Configuration
 ```http
 PUT /config
 Content-Type: application/json
@@ -130,6 +148,18 @@ Content-Type: application/json
   "face_recognition_threshold": 0.6,
   "max_faces_per_image": 10,
   "min_face_size": 20
+}
+```
+Response:
+```json
+{
+  "success": true,
+  "message": "Configuration updated successfully",
+  "config": {
+    "face_recognition_threshold": 0.6,
+    "max_faces_per_image": 10,
+    "min_face_size": 20
+  }
 }
 ```
 
@@ -141,8 +171,7 @@ The server uses the following configuration:
 CONFIG = {
     'face_recognition_threshold': 0.6,  # Lower = more strict matching
     'max_faces_per_image': 10,
-    'min_face_size': 20,
-    'database_path': 'face_data.db'
+    'min_face_size': 20
 }
 ```
 
@@ -152,24 +181,8 @@ CONFIG = {
   - Lower values = more strict matching (fewer false positives, more false negatives)
   - Higher values = more lenient matching (more false positives, fewer false negatives)
   - Recommended: 0.6 for most use cases
-
 - **max_faces_per_image**: Maximum number of faces to process in a single image
 - **min_face_size**: Minimum face size to detect (in pixels)
-- **database_path**: Path to SQLite database file
-
-## Database Schema
-
-The server uses SQLite to store face encodings:
-
-```sql
-CREATE TABLE face_encodings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id TEXT NOT NULL,
-    student_name TEXT NOT NULL,
-    encoding_data TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
 
 ## Integration with Next.js
 
@@ -196,17 +209,13 @@ The server returns consistent error responses:
 
 Common error scenarios:
 - No faces detected in image
-- Multiple faces detected (registration only accepts single faces)
 - Invalid image format
-- Database errors
 - Configuration errors
 
 ## Performance Considerations
 
 - **Face Detection**: Uses dlib's HOG face detector (fast and accurate)
 - **Face Encoding**: Uses dlib's 128-dimensional face encodings
-- **Database**: SQLite for simplicity, consider PostgreSQL for production
-- **Caching**: Consider implementing Redis for caching face encodings in production
 
 ## Security Considerations
 
@@ -271,9 +280,6 @@ curl http://localhost:5000/health
 
 # Get configuration
 curl http://localhost:5000/config
-
-# Get registered faces
-curl http://localhost:5000/faces
 ```
 
 ## Production Deployment
@@ -284,9 +290,8 @@ For production deployment:
 2. **Set up proper logging**
 3. **Configure environment variables**
 4. **Set up monitoring and health checks**
-5. **Use a production database** (PostgreSQL)
-6. **Implement proper authentication**
-7. **Set up SSL/TLS**
+5. **Implement proper authentication**
+6. **Set up SSL/TLS**
 
 Example with Gunicorn:
 
@@ -294,6 +299,11 @@ Example with Gunicorn:
 pip install gunicorn
 gunicorn -w 4 -b 0.0.0.0:5000 app:app
 ```
+
+## Notes
+
+- **Stateless**: This implementation does not persist face data or use a database. All recognition is performed in-memory per request.
+- **Extensibility**: You can extend the server to add registration, face management, and database features as needed.
 
 ## License
 

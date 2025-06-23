@@ -39,8 +39,8 @@ interface Classroom {
   description: string
   capacity: number
   location: string
-  schedule: string
   instructor: string
+  teacherId: string
   studentCount: number
   isActive: boolean
   createdAt: string
@@ -180,11 +180,6 @@ export default function ClassroomsPage() {
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <Users className="h-4 w-4" />
                 <span>{classroom.studentCount} / {classroom.capacity} students</span>
-              </div>
-              
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Calendar className="h-4 w-4" />
-                <span>{classroom.schedule}</span>
               </div>
 
               <div className="flex items-center justify-between pt-2">

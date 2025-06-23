@@ -27,3 +27,18 @@ yarn-error.log*
 next-env.d.ts
 # clerk configuration (can include secrets)
 /.clerk/
+
+#ignore the pythion env file and the python venv
+.env
+/venv/
+# Python dependency and build files
+requirements.txt
+Pipfile
+Pipfile.lock
+poetry.lock
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+python_server/venv

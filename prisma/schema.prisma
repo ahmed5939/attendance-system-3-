@@ -47,6 +47,7 @@ model Student {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   faceData  FaceData?
+  faceImages FaceImage[] // Multiple face images per student
   classes   Class[]  @relation("ClassStudents")
   sessions  Session[]
   attendance Attendance[]
@@ -70,6 +71,15 @@ model FaceData {
   studentId String   @unique
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   data      Bytes    // Store face encoding data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FaceImage {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  image     String   // Store the face image as base64
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -114,4 +124,28 @@ model Attendance {
   timestamp DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SystemLog {
+  id        String    @id @default(cuid())
+  level     String    // e.g., INFO, WARN, ERROR
+  message   String
+  meta      Json?
+  createdAt DateTime  @default(now())
+}
+
+model BackupLog {
+  id        String    @id @default(cuid())
+  status    String    // e.g., SUCCESS, FAILED
+  type      String    // e.g., MANUAL, AUTOMATIC
+  path      String?
+  duration  Int?      // in milliseconds
+  createdAt DateTime  @default(now())
+}
+
+model SystemSetting {
+  id          String @id @default(cuid())
+  key         String @unique
+  value       Json
+  updatedAt   DateTime @updatedAt
 } 

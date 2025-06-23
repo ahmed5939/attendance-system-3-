@@ -1,13 +1,13 @@
 import { useEffect } from 'react'
-import { useAuth } from './use-auth'
+import { useAuth } from '@clerk/nextjs'
 import { toast } from '@/components/ui/use-toast'
 
 export const useSyncUser = () => {
-  const { isLoaded, isAuthenticated, userId } = useAuth()
+  const { isLoaded, isSignedIn, userId } = useAuth()
 
   useEffect(() => {
     const syncUser = async () => {
-      if (!isLoaded || !isAuthenticated || !userId) {
+      if (!isLoaded || !isSignedIn || !userId) {
         return
       }
 
@@ -46,7 +46,7 @@ export const useSyncUser = () => {
     }
 
     syncUser()
-  }, [isLoaded, isAuthenticated, userId])
+  }, [isLoaded, isSignedIn, userId])
 
-  return { isLoaded, isAuthenticated }
+  return { isLoaded, isSignedIn }
 } 

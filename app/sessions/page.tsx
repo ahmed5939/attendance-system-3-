@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Search } from "lucide-react"
 import { format } from "date-fns"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@clerk/nextjs"
 import { toast } from "@/components/ui/use-toast"
 import useSWR from "swr"
 
@@ -53,7 +53,7 @@ const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export default function SessionsPage() {
   const router = useRouter()
-  const { isLoaded, isAuthenticated } = useAuth()
+  const { isLoaded, isSignedIn } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [newSession, setNewSession] = useState({
     name: "",
@@ -65,12 +65,12 @@ export default function SessionsPage() {
 
   // Fetch data using SWR
   const { data: sessionsData, error: sessionsError, mutate: mutateSessions } = useSWR<Session[]>(
-    isAuthenticated ? "/api/sessions" : null,
+    isSignedIn ? "/api/sessions" : null,
     fetcher
   )
 
   const { data: classroomsData, error: classroomsError } = useSWR<{classrooms: Classroom[]}>(
-    isAuthenticated ? "/api/classrooms" : null,
+    isSignedIn ? "/api/classrooms" : null,
     fetcher
   )
 
@@ -87,7 +87,7 @@ export default function SessionsPage() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isSignedIn) {
     router.push("/sign-in")
     return null
   }
@@ -227,7 +227,7 @@ export default function SessionsPage() {
                   <SelectContent>
                     {classrooms.map((classroom) => (
                       <SelectItem key={classroom.id} value={classroom.id}>
-                        {classroom.name} - {classroom.teacher.name}
+                        {classroom.name} - 
                       </SelectItem>
                     ))}
                   </SelectContent>

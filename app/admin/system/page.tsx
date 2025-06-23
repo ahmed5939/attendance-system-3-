@@ -21,41 +21,88 @@ import {
   Clock,
   HardDrive,
   Cpu,
-  Memory,
+  BarChart3,
   Network
 } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
 import { useUserProfile } from "@/hooks/use-user-profile"
 import useSWR from "swr"
+import { useAuth } from "@clerk/nextjs";
+import { formatDistanceToNow } from 'date-fns'
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+const fetcher = async (url: string) => {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  return response.json()
+}
+
+function formatBytes(bytes: number, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
 
 export default function SystemAdminPage() {
-  const { isLoaded, isAuthenticated } = useAuth()
-  const { data: userProfile } = useUserProfile()
-  const [maintenanceMode, setMaintenanceMode] = useState(false)
-  const [backupEnabled, setBackupEnabled] = useState(true)
-  const [autoCleanup, setAutoCleanup] = useState(true)
+  const { isLoaded, isSignedIn } = useAuth()
+  const { profile: userProfile } = useUserProfile()
 
   // Fetch system stats
   const { data: stats } = useSWR("/api/stats", fetcher, {
-    refreshInterval: 30000 // Refresh every 30 seconds
+    refreshInterval: 5000 // Refresh every 5 seconds
   })
+
+  // Fetch system logs
+  const { data: logs, error: logsError } = useSWR("/api/admin/logs", fetcher, {
+    refreshInterval: 5000, // Refresh every 5 seconds
+    onError: (error) => {
+      console.error('Logs SWR error:', error)
+    },
+    onSuccess: (data) => {
+      console.log('Logs SWR success:', data)
+    }
+  })
+
+  // Fetch system settings
+  const { data: settings, mutate: mutateSettings } = useSWR("/api/admin/settings", fetcher)
 
   // Check if user is admin
   const isAdmin = userProfile?.role === 'ADMIN'
 
-  if (!isLoaded) {
+  const handleSettingChange = async (key: string, value: any) => {
+    try {
+      // Optimistically update the local state
+      mutateSettings((currentSettings: any) => ({ ...currentSettings, [key]: value }), false)
+      
+      // Make the API call
+      await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      })
+
+      // Re-fetch to confirm
+      mutateSettings()
+    } catch (error) {
+      console.error("Failed to update setting", error)
+      // Optionally, show an error to the user and roll back
+    }
+  }
+
+  if (!isLoaded || !stats || !settings) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Loading...</h1>
+          <h1 className="text-2xl font-bold mb-2">Loading System Data...</h1>
         </div>
       </div>
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isSignedIn) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -84,8 +131,8 @@ export default function SystemAdminPage() {
           <h1 className="text-3xl font-bold">System Administration</h1>
           <p className="text-gray-600 mt-1">Monitor and manage system resources and settings</p>
         </div>
-        <Badge variant={maintenanceMode ? "destructive" : "default"}>
-          {maintenanceMode ? "Maintenance Mode" : "System Online"}
+        <Badge variant={settings.maintenanceMode ? "destructive" : "default"}>
+          {settings.maintenanceMode ? "Maintenance Mode" : "System Online"}
         </Badge>
       </div>
 
@@ -107,9 +154,9 @@ export default function SystemAdminPage() {
                 <Database className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">Online</div>
+                <div className="text-2xl font-bold text-green-600">{stats.databaseStatus}</div>
                 <p className="text-xs text-muted-foreground">
-                  Last sync: 2 minutes ago
+                  Last sync: {formatDistanceToNow(new Date(stats.lastSync))} ago
                 </p>
               </CardContent>
             </Card>
@@ -120,9 +167,9 @@ export default function SystemAdminPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalStudents || 0}</div>
+                <div className="text-2xl font-bold">{stats.totalStudents || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  +{stats?.totalTeachers || 0} teachers
+                  +{stats.totalTeachers || 0} teachers
                 </p>
               </CardContent>
             </Card>
@@ -133,7 +180,7 @@ export default function SystemAdminPage() {
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.activeSessions || 0}</div>
+                <div className="text-2xl font-bold">{stats.activeSessions || 0}</div>
                 <p className="text-xs text-muted-foreground">
                   Currently running
                 </p>
@@ -146,7 +193,7 @@ export default function SystemAdminPage() {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">98%</div>
+                <div className="text-2xl font-bold text-green-600">{stats.health}%</div>
                 <p className="text-xs text-muted-foreground">
                   All systems operational
                 </p>
@@ -191,17 +238,9 @@ export default function SystemAdminPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Current Usage</span>
-                    <span>45%</span>
+                    <span>{stats.cpuUsage.toFixed(2)}%</span>
                   </div>
-                  <Progress value={45} className="h-2" />
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Peak:</span> 78%
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Average:</span> 32%
-                  </div>
+                  <Progress value={stats.cpuUsage} className="h-2" />
                 </div>
               </CardContent>
             </Card>
@@ -210,7 +249,7 @@ export default function SystemAdminPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Memory className="h-5 w-5" />
+                  <BarChart3 className="h-5 w-5" />
                   Memory Usage
                 </CardTitle>
               </CardHeader>
@@ -218,22 +257,19 @@ export default function SystemAdminPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Current Usage</span>
-                    <span>2.1 GB / 8 GB</span>
+                    <span>{formatBytes(stats.memory.used)} / {formatBytes(stats.memory.total)}</span>
                   </div>
-                  <Progress value={26} className="h-2" />
+                  <Progress value={stats.memory.usagePercentage} className="h-2" />
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-muted-foreground">Available:</span> 5.9 GB
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Cached:</span> 1.2 GB
+                    <span className="text-muted-foreground">Available:</span> {formatBytes(stats.memory.free)}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Disk Usage */}
+            {/* Disk Usage (Placeholder) */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -249,18 +285,10 @@ export default function SystemAdminPage() {
                   </div>
                   <Progress value={31} className="h-2" />
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Free:</span> 344 GB
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Database:</span> 45 GB
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
-            {/* Network */}
+            {/* Network (Placeholder) */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -269,22 +297,9 @@ export default function SystemAdminPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Incoming</span>
-                    <span>2.3 MB/s</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Outgoing</span>
-                    <span>1.8 MB/s</span>
-                  </div>
-                </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-muted-foreground">Active Connections:</span> 127
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Uptime:</span> 15d 7h
+                    <span className="text-muted-foreground">Uptime:</span> {formatDistanceToNow(new Date(Date.now() - stats.uptime * 1000))}
                   </div>
                 </div>
               </CardContent>
@@ -310,7 +325,7 @@ export default function SystemAdminPage() {
                       Temporarily disable system access
                     </p>
                   </div>
-                  <Switch checked={maintenanceMode} onCheckedChange={setMaintenanceMode} />
+                  <Switch checked={settings.maintenanceMode} onCheckedChange={(val) => handleSettingChange('maintenanceMode', val)} />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -320,7 +335,7 @@ export default function SystemAdminPage() {
                       Require 2FA for all users
                     </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch checked={settings.twoFactorAuth} onCheckedChange={(val) => handleSettingChange('twoFactorAuth', val)} />
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -335,7 +350,13 @@ export default function SystemAdminPage() {
 
                 <div className="space-y-2">
                   <Label>Session Timeout (minutes)</Label>
-                  <Input type="number" defaultValue={30} min={5} max={480} />
+                  <Input 
+                    type="number" 
+                    value={settings.sessionTimeout} 
+                    onChange={(e) => handleSettingChange('sessionTimeout', parseInt(e.target.value))}
+                    min={5} 
+                    max={480} 
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -384,25 +405,41 @@ export default function SystemAdminPage() {
                       Enable daily database backups
                     </p>
                   </div>
-                  <Switch checked={backupEnabled} onCheckedChange={setBackupEnabled} />
+                  <Switch checked={settings.backupEnabled} onCheckedChange={(val) => handleSettingChange('backupEnabled', val)} />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Backup Schedule</Label>
-                  <Input defaultValue="02:00" type="time" disabled={!backupEnabled} />
+                  <Input 
+                    value={settings.backupSchedule}
+                    onChange={(e) => handleSettingChange('backupSchedule', e.target.value)} 
+                    type="time" 
+                    disabled={!settings.backupEnabled} 
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Retention Period (days)</Label>
-                  <Input defaultValue="30" type="number" min={1} max={365} disabled={!backupEnabled} />
+                  <Input 
+                    value={settings.backupRetention} 
+                    onChange={(e) => handleSettingChange('backupRetention', parseInt(e.target.value))}
+                    type="number" 
+                    min={1} 
+                    max={365} 
+                    disabled={!settings.backupEnabled} 
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Backup Location</Label>
-                  <Input defaultValue="/backups" disabled={!backupEnabled} />
+                  <Input 
+                    value={settings.backupLocation} 
+                    onChange={(e) => handleSettingChange('backupLocation', e.target.value)} 
+                    disabled={!settings.backupEnabled} 
+                  />
                 </div>
 
-                <Button disabled={!backupEnabled}>
+                <Button disabled={!settings.backupEnabled}>
                   Create Manual Backup
                 </Button>
               </CardContent>
@@ -451,34 +488,29 @@ export default function SystemAdminPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="font-medium">User login</span>
-                    <p className="text-sm text-muted-foreground">admin@school.edu logged in successfully</p>
-                  </div>
-                  <span className="text-sm text-muted-foreground">2 minutes ago</span>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="font-medium">Database backup</span>
-                    <p className="text-sm text-muted-foreground">Scheduled backup completed successfully</p>
-                  </div>
-                  <span className="text-sm text-muted-foreground">1 hour ago</span>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="font-medium">Face recognition</span>
-                    <p className="text-sm text-muted-foreground">Processing completed for session A101</p>
-                  </div>
-                  <span className="text-sm text-muted-foreground">3 hours ago</span>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="font-medium">System maintenance</span>
-                    <p className="text-sm text-muted-foreground">Scheduled maintenance window completed</p>
-                  </div>
-                  <span className="text-sm text-muted-foreground">1 day ago</span>
-                </div>
+                {logsError ? (
+                  <p className="text-center text-red-500 py-4">Error loading logs: {logsError.message}</p>
+                ) : !logs ? (
+                  <p>Loading logs...</p>
+                ) : Array.isArray(logs) ? (
+                  logs.length > 0 ? (
+                    logs.map((log: any) => (
+                      <div key={log.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div>
+                          <span className="font-medium capitalize">{log.level.toLowerCase()}</span>
+                          <p className="text-sm text-muted-foreground">{log.message}</p>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDistanceToNow(new Date(log.createdAt))} ago
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-gray-500 py-4">No logs found</p>
+                  )
+                ) : (
+                  <p className="text-center text-red-500 py-4">Error loading logs</p>
+                )}
               </div>
             </CardContent>
           </Card>

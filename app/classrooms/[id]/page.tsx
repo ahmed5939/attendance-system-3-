@@ -22,6 +22,9 @@ import {
 } from "lucide-react"
 import { EditClassroomDialog } from "@/components/classroom/edit-classroom-dialog"
 import { DeleteClassroomDialog } from "@/components/classroom/delete-classroom-dialog"
+import { ManageStudentsDialog } from "@/components/classroom/manage-students-dialog"
+import { ViewScheduleDialog } from "@/components/classroom/view-schedule-dialog"
+import { GenerateReportDialog } from "@/components/classroom/generate-report-dialog"
 import { useState } from "react"
 
 // Fetcher function for SWR
@@ -33,8 +36,8 @@ interface Classroom {
   description: string
   capacity: number
   location: string
-  schedule: string
   instructor: string
+  teacherId: string
   studentCount: number
   isActive: boolean
   createdAt: string
@@ -47,6 +50,9 @@ export default function ClassroomDetailPage() {
   const { user } = useUser()
   const [editingClassroom, setEditingClassroom] = useState<Classroom | null>(null)
   const [deletingClassroom, setDeletingClassroom] = useState<Classroom | null>(null)
+  const [isManageStudentsOpen, setIsManageStudentsOpen] = useState(false)
+  const [isViewScheduleOpen, setIsViewScheduleOpen] = useState(false)
+  const [isGenerateReportOpen, setIsGenerateReportOpen] = useState(false)
 
   const classroomId = params.id as string
 
@@ -147,14 +153,6 @@ export default function ClassroomDetailPage() {
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-gray-500" />
-                  <div>
-                    <p className="text-sm text-gray-500">Schedule</p>
-                    <p className="font-medium">{classroom.schedule}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
                   <Users className="h-5 w-5 text-gray-500" />
                   <div>
                     <p className="text-sm text-gray-500">Capacity</p>
@@ -200,19 +198,19 @@ export default function ClassroomDetailPage() {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => setIsManageStudentsOpen(true)}>
                 <Users className="h-4 w-4 mr-2" />
                 Manage Students
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => setIsViewScheduleOpen(true)}>
                 <Calendar className="h-4 w-4 mr-2" />
                 View Schedule
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => setIsGenerateReportOpen(true)}>
                 <FileText className="h-4 w-4 mr-2" />
                 Generate Report
               </Button>
-              <Button className="w-full justify-start" variant="outline">
+              <Button className="w-full justify-start" variant="outline" onClick={() => router.push(`/classrooms/${classroomId}/test-attendance`)}>
                 <Clock className="h-4 w-4 mr-2" />
                 Take Attendance
               </Button>
@@ -275,6 +273,8 @@ export default function ClassroomDetailPage() {
             setEditingClassroom(null)
             mutate()
           }}
+          onClose={() => setDeletingClassroom(null)}
+          onDeleted={() => router.push('/classrooms')}
         />
       )}
 
@@ -287,6 +287,31 @@ export default function ClassroomDetailPage() {
             setDeletingClassroom(null)
             router.push('/classrooms')
           }}
+        />
+      )}
+
+      {isManageStudentsOpen && (
+        <ManageStudentsDialog
+          classroomId={classroomId}
+          isOpen={isManageStudentsOpen}
+          onClose={() => setIsManageStudentsOpen(false)}
+          onStudentsManaged={() => mutate()}
+        />
+      )}
+
+      {isViewScheduleOpen && (
+        <ViewScheduleDialog
+          classroomId={classroomId}
+          isOpen={isViewScheduleOpen}
+          onClose={() => setIsViewScheduleOpen(false)}
+        />
+      )}
+
+      {isGenerateReportOpen && (
+        <GenerateReportDialog
+          classroomId={classroomId}
+          isOpen={isGenerateReportOpen}
+          onClose={() => setIsGenerateReportOpen(false)}
         />
       )}
     </div>

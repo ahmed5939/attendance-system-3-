@@ -16,7 +16,28 @@ export async function GET(
     const classData = await prisma.class.findUnique({
       where: { id: params.id },
       include: {
-        students: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
+        students: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
         sessions: true,
       }
     })
@@ -32,8 +53,8 @@ export async function GET(
       description: classData.description,
       capacity: classData.capacity,
       location: classData.location,
-      schedule: classData.schedule,
-      instructor: classData.instructor,
+      instructor: classData.teacher.name,
+      teacherId: classData.teacherId,
       studentCount: classData.students.length,
       isActive: classData.isActive,
       createdAt: classData.createdAt.toISOString(),
@@ -59,12 +80,25 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, description, capacity, location, schedule, instructor, isActive } = body
+    const { name, description, capacity, location, teacherId, isActive } = body
 
     // Check if classroom exists
     const existingClass = await prisma.class.findUnique({
       where: { id: params.id },
-      include: { students: true }
+      include: { 
+        students: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        }
+      }
     })
     
     if (!existingClass) {
@@ -78,6 +112,19 @@ export async function PUT(
       }, { status: 400 })
     }
 
+    // Verify teacher exists if teacherId is provided
+    if (teacherId) {
+      const teacher = await prisma.teacher.findUnique({
+        where: { id: teacherId }
+      })
+
+      if (!teacher) {
+        return NextResponse.json({ 
+          error: 'Teacher not found' 
+        }, { status: 404 })
+      }
+    }
+
     // Update classroom in database
     const updatedClass = await prisma.class.update({
       where: { id: params.id },
@@ -86,12 +133,32 @@ export async function PUT(
         ...(description && { description }),
         ...(capacity && { capacity: parseInt(capacity) }),
         ...(location && { location }),
-        ...(schedule && { schedule }),
-        ...(instructor && { instructor }),
+        ...(teacherId && { teacherId }),
         ...(typeof isActive === 'boolean' && { isActive }),
       },
       include: {
-        students: true,
+        students: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        },
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        }
       }
     })
 
@@ -102,8 +169,8 @@ export async function PUT(
       description: updatedClass.description,
       capacity: updatedClass.capacity,
       location: updatedClass.location,
-      schedule: updatedClass.schedule,
-      instructor: updatedClass.instructor,
+      instructor: updatedClass.teacher.name,
+      teacherId: updatedClass.teacherId,
       studentCount: updatedClass.students.length,
       isActive: updatedClass.isActive,
       createdAt: updatedClass.createdAt.toISOString(),
@@ -134,7 +201,20 @@ export async function DELETE(
     // Check if classroom exists and has students
     const existingClass = await prisma.class.findUnique({
       where: { id: params.id },
-      include: { students: true }
+      include: { 
+        students: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        }
+      }
     })
     
     if (!existingClass) {
@@ -153,6 +233,17 @@ export async function DELETE(
       where: { id: params.id },
       include: {
         students: true,
+        teacher: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+              }
+            }
+          }
+        }
       }
     })
 
@@ -163,8 +254,8 @@ export async function DELETE(
       description: deletedClass.description,
       capacity: deletedClass.capacity,
       location: deletedClass.location,
-      schedule: deletedClass.schedule,
-      instructor: deletedClass.instructor,
+      instructor: deletedClass.teacher.name,
+      teacherId: deletedClass.teacherId,
       studentCount: deletedClass.students.length,
       isActive: deletedClass.isActive,
       createdAt: deletedClass.createdAt.toISOString(),

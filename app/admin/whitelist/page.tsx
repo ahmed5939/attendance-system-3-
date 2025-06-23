@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Search, Trash2 } from "lucide-react"
-import { useAuth } from "@/hooks/use-auth"
+import { useAuth } from "@clerk/nextjs"
 import { toast } from "@/components/ui/use-toast"
 import useSWR from "swr"
 
@@ -39,7 +39,7 @@ type WhitelistEntry = {
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 export default function WhitelistPage() {
-  const { isLoaded, isAuthenticated } = useAuth()
+  const { isLoaded, isSignedIn } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [newEntry, setNewEntry] = useState({
     email: "",
@@ -51,7 +51,7 @@ export default function WhitelistPage() {
 
   // Fetch whitelist data using SWR
   const { data: whitelistData, error, mutate } = useSWR<{whitelist: WhitelistEntry[]}>(
-    isAuthenticated ? "/api/admin/whitelist" : null,
+    isSignedIn ? "/api/admin/whitelist" : null,
     fetcher
   )
 
@@ -67,7 +67,7 @@ export default function WhitelistPage() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isSignedIn) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
