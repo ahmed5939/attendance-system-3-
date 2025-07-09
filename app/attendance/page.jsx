@@ -1,151 +1,97 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useUser } from "@clerk/nextjs"
+import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CalendarIcon, Download, Filter } from "lucide-react"
+import { CalendarIcon, Download, Filter, Loader2 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
-// Mock attendance data
-const mockAttendance = [
-  {
-    id: 1,
-    name: "John Doe",
-    rollNumber: "S001",
-    class: "Class A",
-    date: "2023-05-01",
-    session: "Morning",
-    status: "Present",
-  },
-  {
-    id: 2,
-    name: "Jane Smith",
-    rollNumber: "S002",
-    class: "Class B",
-    date: "2023-05-01",
-    session: "Morning",
-    status: "Absent",
-  },
-  {
-    id: 3,
-    name: "Michael Johnson",
-    rollNumber: "S003",
-    class: "Class A",
-    date: "2023-05-01",
-    session: "Morning",
-    status: "Present",
-  },
-  {
-    id: 4,
-    name: "Emily Brown",
-    rollNumber: "S004",
-    class: "Class C",
-    date: "2023-05-01",
-    session: "Morning",
-    status: "Present",
-  },
-  {
-    id: 5,
-    name: "David Wilson",
-    rollNumber: "S005",
-    class: "Class B",
-    date: "2023-05-01",
-    session: "Morning",
-    status: "Present",
-  },
-  {
-    id: 6,
-    name: "Sarah Taylor",
-    rollNumber: "S006",
-    class: "Class A",
-    date: "2023-05-01",
-    session: "Afternoon",
-    status: "Absent",
-  },
-  {
-    id: 7,
-    name: "James Anderson",
-    rollNumber: "S007",
-    class: "Class C",
-    date: "2023-05-01",
-    session: "Afternoon",
-    status: "Present",
-  },
-  {
-    id: 8,
-    name: "Olivia Thomas",
-    rollNumber: "S008",
-    class: "Class B",
-    date: "2023-05-01",
-    session: "Afternoon",
-    status: "Present",
-  },
-  {
-    id: 9,
-    name: "Robert Jackson",
-    rollNumber: "S009",
-    class: "Class A",
-    date: "2023-05-01",
-    session: "Afternoon",
-    status: "Present",
-  },
-  {
-    id: 10,
-    name: "Sophia White",
-    rollNumber: "S010",
-    class: "Class C",
-    date: "2023-05-01",
-    session: "Afternoon",
-    status: "Absent",
-  },
-]
+const fetcher = (url) => fetch(url).then(res => res.json())
 
 export default function AttendancePage() {
-  const [attendance, setAttendance] = useState(mockAttendance)
+  const { user, isLoaded } = useUser()
   const [date, setDate] = useState(new Date())
-  const [selectedClass, setSelectedClass] = useState("")
-  const [selectedSession, setSelectedSession] = useState("")
-  const [user, setUser] = useState(null)
 
-  useEffect(() => {
-    // In a real app, this would be a proper auth check
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
-    }
-  }, [])
+  // Fetch attendance data using SWR - no filtering, just get all data
+  const attendanceUrl = `/api/attendance?date=${format(date, "yyyy-MM-dd")}`
+  const { data: attendance, error: attendanceError, mutate: mutateAttendance } = useSWR(attendanceUrl, fetcher)
 
-  const handleStatusChange = (id, newStatus) => {
+  // Get user role from Clerk metadata or default to student
+  const userRole = user?.publicMetadata?.role || "student"
+
+  const handleStatusChange = async (attendanceId, newStatus) => {
     // Only allow teachers and admins to change status
-    if (user?.role === "student") return
+    if (userRole === "student") return
 
-    setAttendance((prev) => prev.map((record) => (record.id === id ? { ...record, status: newStatus } : record)))
+    try {
+      // Find the attendance record to update
+      const record = attendance.find(a => a.id === attendanceId)
+      if (!record) return
+
+      const response = await fetch(`/api/attendance/${attendanceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      if (response.ok) {
+        // Refresh the attendance data
+        mutateAttendance()
+      }
+    } catch (error) {
+      console.error("Error updating attendance:", error)
+    }
   }
 
-  const filteredAttendance = attendance.filter((record) => {
-    // Filter by class if selected
-    if (selectedClass && record.class !== selectedClass) return false
+  const handleExport = () => {
+    if (!attendance || attendance.length === 0) {
+      alert("No data to export")
+      return
+    }
 
-    // Filter by session if selected
-    if (selectedSession && record.session !== selectedSession) return false
+    // Create CSV content
+    const headers = ["Name", "Email", "Class", "Session", "Date", "Status"]
+    const csvContent = [
+      headers.join(","),
+      ...attendance.map(record => [
+        `"${record.student?.name || "Unknown"}"`,
+        `"${record.student?.user?.email || "No email"}"`,
+        `"${record.session?.class?.name || "Unknown"}"`,
+        `"${record.session?.name || "Unknown"}"`,
+        `"${format(new Date(record.timestamp), "MMM dd, yyyy HH:mm")}"`,
+        `"${record.status}"`
+      ].join(","))
+    ].join("\n")
 
-    // Filter by date (always applied)
-    return record.date === format(date, "yyyy-MM-dd")
-  })
+    // Create and download file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `attendance-${format(date, "yyyy-MM-dd")}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
-  // For students, only show their own attendance
-  const studentAttendance =
-    user?.role === "student"
-      ? filteredAttendance.filter((record) => record.name === "John Doe") // Mock student name
-      : filteredAttendance
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Attendance Records</h1>
+      <h1 className="text-3xl font-bold mb-6">Attendance Records (Raw API Data)</h1>
 
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="flex items-center">
@@ -162,74 +108,73 @@ export default function AttendancePage() {
           </Popover>
         </div>
 
-        {user?.role !== "student" && (
-          <>
-            <Select value={selectedClass} onValueChange={setSelectedClass}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select Class" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                <SelectItem value="Class A">Class A</SelectItem>
-                <SelectItem value="Class B">Class B</SelectItem>
-                <SelectItem value="Class C">Class C</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedSession} onValueChange={setSelectedSession}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select Session" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sessions</SelectItem>
-                <SelectItem value="Morning">Morning</SelectItem>
-                <SelectItem value="Afternoon">Afternoon</SelectItem>
-              </SelectContent>
-            </Select>
-          </>
-        )}
-
-        <Button variant="outline">
-          <Filter className="mr-2 h-4 w-4" />
-          More Filters
-        </Button>
-
-        <Button variant="outline" className="ml-auto">
+        <Button variant="outline" className="ml-auto" onClick={handleExport}>
           <Download className="mr-2 h-4 w-4" />
           Export
         </Button>
       </div>
 
+      {attendanceError && (
+        <div className="text-red-500 mb-4">
+          Error loading attendance data: {attendanceError.message}
+        </div>
+      )}
+
+      {/* Raw data display */}
+
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>ID</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Roll Number</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>Class</TableHead>
               <TableHead>Session</TableHead>
+              <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
-              {(user?.role === "admin" || user?.role === "teacher") && <TableHead>Actions</TableHead>}
+              {(userRole === "admin" || userRole === "teacher") && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {studentAttendance.map((record) => (
+            {!attendance && !attendanceError && (
+              <TableRow>
+                <TableCell colSpan={userRole === "student" ? 7 : 8} className="text-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                </TableCell>
+              </TableRow>
+            )}
+            
+            {attendance?.map((record) => (
               <TableRow key={record.id}>
-                <TableCell className="font-medium">{record.name}</TableCell>
-                <TableCell>{record.rollNumber}</TableCell>
-                <TableCell>{record.class}</TableCell>
-                <TableCell>{record.session}</TableCell>
+                <TableCell className="font-mono text-xs">{record.id}</TableCell>
+                <TableCell className="font-medium">
+                  {record.student?.name || "Unknown"}
+                </TableCell>
+                <TableCell>
+                  {record.student?.user?.email || "No email"}
+                </TableCell>
+                <TableCell>
+                  {record.session?.class?.name || "Unknown"}
+                </TableCell>
+                <TableCell>
+                  {record.session?.name || "Unknown"}
+                </TableCell>
+                <TableCell>
+                  {format(new Date(record.timestamp), "MMM dd, yyyy HH:mm")}
+                </TableCell>
                 <TableCell>
                   <span
                     className={cn(
                       "px-2 py-1 rounded-full text-xs",
-                      record.status === "Present" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
+                      record.status === "PRESENT" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
                     )}
                   >
                     {record.status}
                   </span>
                 </TableCell>
-                {(user?.role === "admin" || user?.role === "teacher") && (
+                {(userRole === "admin" || userRole === "teacher") && (
                   <TableCell>
                     <Select
                       defaultValue={record.status}
@@ -239,18 +184,19 @@ export default function AttendancePage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Present">Present</SelectItem>
-                        <SelectItem value="Absent">Absent</SelectItem>
+                        <SelectItem value="PRESENT">Present</SelectItem>
+                        <SelectItem value="ABSENT">Absent</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>
                 )}
               </TableRow>
             ))}
-            {studentAttendance.length === 0 && (
+            
+            {attendance?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={user?.role === "student" ? 5 : 6} className="text-center py-4">
-                  No attendance records found for the selected filters
+                <TableCell colSpan={userRole === "student" ? 7 : 8} className="text-center py-4">
+                  No attendance records found for the selected date
                 </TableCell>
               </TableRow>
             )}

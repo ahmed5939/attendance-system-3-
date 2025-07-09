@@ -32,7 +32,7 @@ next-env.d.ts
 .env
 /venv/
 # Python dependency and build files
-requirements.txt
+
 Pipfile
 Pipfile.lock
 poetry.lock
